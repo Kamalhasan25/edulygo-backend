@@ -1,40 +1,49 @@
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const pool = require('./db');
+require('dotenv').config();
+const db = require('./db');
 
-// রুটগুলো ইম্পোর্ট
 const authRoutes = require('./routes/authRoutes');
 const academicRoutes = require('./routes/academicRoutes');
 const operationRoutes = require('./routes/operationRoutes');
-const examRoutes = require('./routes/examRoutes'); // নতুন পরীক্ষা রুট
+const examRoutes = require('./routes/examRoutes');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+// ১. CORS কনফিগারেশন
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
-// হোম রুট
-app.get('/', async (req, res) => {
-    try {
-        const dbRes = await pool.query('SELECT NOW()');
-        res.json({
-            success: true,
-            message: 'স্বাগতম! Edulygo ব্যাকএন্ড ও ক্লাউড ডেটাবেস সক্রিয় রয়েছে।',
-            db_server_time: dbRes.rows[0].now
-        });
-    } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
-    }
+// ২. হেলথ চেক ও পিং রুট
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'Edulygo backend is running smoothly' });
 });
 
-// রুটগুলো অ্যাপে যুক্ত করা
-app.use('/api', authRoutes);
-app.use('/api', academicRoutes);
-app.use('/api', operationRoutes);
-app.use('/api', examRoutes);
+// ৩. রুটস মাউন্ট করা
+app.use('/api/users', authRoutes);
+app.use('/api/academic', academicRoutes);
+app.use('/api/operations', operationRoutes);
+app.use('/api/exams', examRoutes);
+
+const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-    console.log(`Edulygo সার্ভার পরিচ্ছন্ন ও প্রস্তুত: http://localhost:${PORT}`);
+  console.log(`Edulygo সার্ভার পরিচ্ছন্ন ও প্রস্তুত: http://localhost:${PORT}`);
+  
+  // ৪. অটো-পিং ব্যবস্থা
+  const PING_INTERVAL = 14 * 60 * 1000;
+  setInterval(async () => {
+    try {
+      const fetch = (await import('node-fetch')).default || global.fetch;
+      await fetch('https://edulygo-backend.onrender.com/health');
+      console.log('Keep-alive ping sent to prevent sleep mode');
+    } catch (err) {
+      console.log('Keep-alive ping error:', err.message);
+    }
+  }, PING_INTERVAL);
 });
